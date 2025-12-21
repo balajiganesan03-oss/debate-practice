@@ -887,7 +887,19 @@
             console.log('Difficulty level:', debateState.difficultyLevel);
 
             try {
-                console.log('Making API call...');
+                console.log('Making API call with key:', debateState.apiKey.substring(0, 20) + '...');
+                
+                const requestBody = {
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 1000,
+                    messages: [{
+                        role: 'user',
+                        content: `${context}\n\n${levelInstruction}\n\nProvide a strong, well-structured speech for the ${speech.name}. Make compelling arguments for the ${agentPosition} position at the ${debateState.difficultyLevel.toUpperCase()} level. Keep it concise and powerful (aim for 2-3 minutes when spoken). Match the complexity and style to the difficulty level specified.`
+                    }]
+                };
+                
+                console.log('Request body:', JSON.stringify(requestBody, null, 2));
+                
                 const response = await fetch('https://api.anthropic.com/v1/messages', {
                     method: 'POST',
                     headers: {
@@ -895,22 +907,28 @@
                         'x-api-key': debateState.apiKey,
                         'anthropic-version': '2023-06-01'
                     },
-                    body: JSON.stringify({
-                        model: 'claude-sonnet-4-20250514',
-                        max_tokens: 1000,
-                        messages: [{
-                            role: 'user',
-                            content: `${context}\n\n${levelInstruction}\n\nProvide a strong, well-structured speech for the ${speech.name}. Make compelling arguments for the ${agentPosition} position at the ${debateState.difficultyLevel.toUpperCase()} level. Keep it concise and powerful (aim for 2-3 minutes when spoken). Match the complexity and style to the difficulty level specified.`
-                        }]
-                    })
+                    body: JSON.stringify(requestBody)
                 });
 
                 console.log('Response status:', response.status);
+                console.log('Response headers:', [...response.headers.entries()]);
 
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('API error response:', errorText);
-                    throw new Error(`API request failed: ${response.status} - ${errorText.substring(0, 100)}`);
+                    
+                    let errorMessage = `API request failed: ${response.status}`;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        if (errorJson.error && errorJson.error.message) {
+                            errorMessage += ` - ${errorJson.error.message}`;
+                        }
+                    } catch (e) {
+                        errorMessage += ` - ${errorText.substring(0, 200)}`;
+                    }
+                    
+                    throw new Error(errorMessage);
+                }
                 }
 
                 const data = await response.json();
